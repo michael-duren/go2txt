@@ -9,9 +9,7 @@ works with local repositories.
 You can install the package using go:
 
 ```bash
-go build -o git2txt
-## Move the binary to a directory in your PATH
-&& mv git2txt /usr/local/bin/
+go install github.com/michael-duren/go2txt@latest
 ```
 
 Or download a pre-built binary from the [releases page](https://github.com/michael-duren/git2txt-local/releases).
