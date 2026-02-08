@@ -15,7 +15,7 @@ A lightweight command-line tool that converts your Git repository into a single 
 ### Install with Go
 
 ```bash
-go install github.com/michael-duren/go2txt@latest
+go install github.com/michael-duren/go2txt/cmd/cli@latest
 ```
 
 Make sure `$GOPATH/bin` (usually `~/go/bin`) is in your `PATH`.
@@ -110,7 +110,7 @@ Contributions are welcome! Areas for improvement:
 ```bash
 git clone https://github.com/michael-duren/go2txt.git
 cd go2txt
-go run main.go
+go run cmd/cli/main.go
 ```
 
 ## Credits
