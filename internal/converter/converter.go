@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -11,34 +13,92 @@ const (
 	maxFileSize = 100 * 1024 * 1024 // 100MB
 )
 
-type RunConfig struct {
+type Runner struct {
 	// Files to ignore also supports glob syntax *.js
-	ExcludedFiles []string
+	excludedFiles []string
+
+	// A file type to include only like *.md
+	includeOnly string
 
 	// Output results for each file scanned
-	Verbose bool
-	// Git repository found
-	Git bool
+	verbose bool
+	// git repository found
+	git bool
 	// If a url is supplied make request to download first
-	RemoteRepository bool
+	remoteRepository string
 }
 
-func NewRunConfig(excludedFiles []string, verbose, git, remoteRepository bool) *RunConfig {
-	return &RunConfig{
-		ExcludedFiles:    excludedFiles,
-		Verbose:          verbose,
-		Git:              git,
-		RemoteRepository: remoteRepository,
+func NewRunner(excludedFiles string, verbose, git bool, remoteRepository string) *Runner {
+	var excluded []string
+	if excludedFiles != "" {
+		excluded = strings.Split(excludedFiles, ",")
+	}
+
+	return &Runner{
+		excludedFiles:    excluded,
+		verbose:          verbose,
+		git:              git,
+		remoteRepository: remoteRepository,
 	}
 }
 
 // Run process
-func Run() {
+func (r Runner) Run(files []string, writer *bufio.Writer) error {
+	for _, file := range files {
+		inExcluded, err := r.inExcludedFiles(file)
+		if err != nil {
+			return err
+		}
+		if inExcluded {
+			continue
+		}
 
+		included, err := r.isIncludedFile(file)
+		if err != nil {
+			return err
+		}
+		if !included {
+			continue
+		}
+
+		if err := r.processFile(file, writer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r Runner) isIncludedFile(file string) (bool, error) {
+	if r.includeOnly == "" {
+		return true, nil
+	}
+
+	rg, err := regexp.Compile(r.includeOnly)
+	if err != nil {
+		return false, fmt.Errorf("can't use include with: %s", r.includeOnly)
+	}
+	return rg.Match([]byte(file)), nil
+}
+
+func (r Runner) inExcludedFiles(file string) (bool, error) {
+	if r.includeOnly != "" {
+		return false, nil
+	}
+
+	for _, ex := range r.excludedFiles {
+		rg, err := regexp.Compile(ex)
+		if err != nil {
+			return false, err
+		}
+		if rg.Match([]byte(file)) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // ProcessFile reads a file and writes its content to the writer if it meets criteria
-func ProcessFile(filename string, writer *bufio.Writer) error {
+func (r Runner) processFile(filename string, writer *bufio.Writer) error {
 	info, err := os.Stat(filename)
 	if err != nil {
 		if os.IsNotExist(err) {

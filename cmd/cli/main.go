@@ -5,26 +5,29 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"time"
 
 	"github.com/michael-duren/go2txt/internal/converter"
 	"github.com/michael-duren/go2txt/internal/git"
 )
 
-const (
-	outputFile = "../repo.txt"
-)
 
 func main() {
-	var output string
-	flag.StringVar(&output, "output", "", "output file")
+	outputFile := flag.String("output", "repo.txt", "output file")
+	excludedFiles := flag.String("excluded", "", "excluded files, ex: *.jsx,*.ts")
+	verbose := flag.Bool("verbose", false, "verbose output")
+	gitRepo := flag.Bool("git", true, "is git repository")
+	remoteRepo := flag.String("remote-repository", "", "is a remote repo")
+	flag.Parse()
 
 	if !git.IsRepo() {
 		fmt.Println("Error: Not in a git repository")
 		os.Exit(1)
 	}
 
-	out, err := os.Create(outputFile)
+	outputPath := path.Join("..", *outputFile)
+	out, err := os.Create(outputPath)
 	if err != nil {
 		fmt.Printf("Error creating output file: %v\n", err)
 		os.Exit(1)
@@ -46,17 +49,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	for _, file := range files {
-		if err := converter.ProcessFile(file, writer); err != nil {
-			fmt.Printf("Warning: Error processing %s: %v\n", file, err)
-		}
+	c := converter.NewRunner(*excludedFiles, *verbose, *gitRepo, *remoteRepo)
+	err = c.Run(files, writer)
+
+	if err != nil {
+		fmt.Printf("an error ocurred: %v\n", err)
 	}
 
-	if info, err := os.Stat(outputFile); err == nil {
+	if info, err := os.Stat(*&outputPath); err == nil {
 		fmt.Printf("Done! Output size: %.2f MB\n", float64(info.Size())/(1024*1024))
 	}
-}
-
-func parseFlags() {
-
 }
