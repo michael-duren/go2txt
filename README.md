@@ -4,6 +4,7 @@ A lightweight command-line tool that converts your Git repository into a single 
 
 ## Features
 
+- ❌**NO external depdencies** - Just vanilla go
 - 📦 **Simple & Fast** - One command to export your entire repository
 - 🎯 **Git-Aware** - Only processes tracked files (respects `.gitignore`)
 - 🛡️ **Smart Filtering** - Automatically skips binary files and large files (>100MB)
