@@ -15,13 +15,15 @@ const (
 
 type Runner struct {
 	excludedFiles []string
+	excludedDirs  []string
 	includeOnly   []string
 	verbose       bool
 }
 
-func NewRunner(excludedFiles, includeOnly string, verbose bool) *Runner {
+func NewRunner(excludedFiles, excludedDirs, includeOnly string, verbose bool) *Runner {
 	return &Runner{
 		excludedFiles: splitPatterns(excludedFiles),
+		excludedDirs:  splitPatterns(excludedDirs),
 		includeOnly:   splitPatterns(includeOnly),
 		verbose:       verbose,
 	}
@@ -55,6 +57,17 @@ func (r *Runner) Run(files []string, writer io.Writer) error {
 			continue
 		}
 
+		excludedDir, err := r.inExcludedDirs(file)
+		if err != nil {
+			return err
+		}
+		if excludedDir {
+			if r.verbose {
+				fmt.Println("Excluded dir:", file)
+			}
+			continue
+		}
+
 		excluded, err := r.inExcludedFiles(file)
 		if err != nil {
 			return err
@@ -85,6 +98,40 @@ func (r *Runner) inExcludedFiles(file string) (bool, error) {
 		return false, nil
 	}
 	return matchAny(r.excludedFiles, file)
+}
+
+// inExcludedDirs returns true if any directory component of file matches an
+// excluded-dir pattern, or if the file's parent path matches a pattern.
+func (r *Runner) inExcludedDirs(file string) (bool, error) {
+	if len(r.excludedDirs) == 0 {
+		return false, nil
+	}
+	dir := filepath.Dir(file)
+	if dir == "." || dir == string(filepath.Separator) {
+		return false, nil
+	}
+	for _, p := range r.excludedDirs {
+		ok, err := filepath.Match(p, dir)
+		if err != nil {
+			return false, fmt.Errorf("invalid pattern %q: %w", p, err)
+		}
+		if ok {
+			return true, nil
+		}
+		for comp := range strings.SplitSeq(dir, string(filepath.Separator)) {
+			if comp == "" {
+				continue
+			}
+			ok, err := filepath.Match(p, comp)
+			if err != nil {
+				return false, fmt.Errorf("invalid pattern %q: %w", p, err)
+			}
+			if ok {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // matchAny returns true if file matches any glob pattern.
