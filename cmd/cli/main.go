@@ -18,6 +18,7 @@ func main() {
 		excludedFiles string
 		includeOnly   string
 		verbose       bool
+		showVersion   bool
 	)
 
 	flag.StringVar(&outputFile, "output", "", "output file path (default: ../<repo>.txt)")
@@ -28,7 +29,14 @@ func main() {
 	flag.StringVar(&includeOnly, "i", "", "short for -include")
 	flag.BoolVar(&verbose, "verbose", false, "verbose output")
 	flag.BoolVar(&verbose, "v", false, "short for -verbose")
+	flag.BoolVar(&showVersion, "version", false, "print version and exit")
+	flag.BoolVar(&showVersion, "V", false, "short for -version")
 	flag.Parse()
+
+	if showVersion {
+		printVersion()
+		return
+	}
 
 	if !git.IsRepo() {
 		fmt.Fprintln(os.Stderr, "Error: Not in a git repository")

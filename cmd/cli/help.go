@@ -3,10 +3,48 @@ package main
 import (
 	"flag"
 	"fmt"
+	"runtime/debug"
 )
+
+var version = ""
 
 func init() {
 	flag.Usage = printUsage
+}
+
+func getVersion() string {
+	if version != "" {
+		return version
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	if v := info.Main.Version; v != "" && v != "(devel)" {
+		return v
+	}
+	var rev, mod string
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			if s.Value == "true" {
+				mod = "-dirty"
+			}
+		}
+	}
+	if rev != "" {
+		if len(rev) > 7 {
+			rev = rev[:7]
+		}
+		return rev + mod
+	}
+	return "unknown"
+}
+
+func printVersion() {
+	fmt.Printf("go2txt %s\n", getVersion())
 }
 
 func printUsage() {
@@ -20,6 +58,7 @@ Flags:
   -e, -exclude   string   comma-separated glob patterns to exclude (e.g. *.jsx,*.ts)
   -i, -include   string   comma-separated glob patterns to include exclusively (e.g. *.go,*.md)
   -v, -verbose            verbose output
+  -V, -version            print version and exit
   -h, -help               show this help message
 
 Examples:
