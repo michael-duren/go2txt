@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"regexp"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 )
@@ -14,42 +14,36 @@ const (
 )
 
 type Runner struct {
-	// Files to ignore also supports glob syntax *.js
 	excludedFiles []string
-
-	// A file type to include only like *.md
-	includeOnly string
-
-	// Output results for each file scanned
-	verbose bool
-	// git repository found
-	git bool
-	// If a url is supplied make request to download first
-	remoteRepository string
+	includeOnly   []string
+	verbose       bool
 }
 
-func NewRunner(excludedFiles string, verbose, git bool, remoteRepository string) *Runner {
-	var excluded []string
-	if excludedFiles != "" {
-		excluded = strings.Split(excludedFiles, ",")
-	}
-
+func NewRunner(excludedFiles, includeOnly string, verbose bool) *Runner {
 	return &Runner{
-		excludedFiles:    excluded,
-		verbose:          verbose,
-		git:              git,
-		remoteRepository: remoteRepository,
+		excludedFiles: splitPatterns(excludedFiles),
+		includeOnly:   splitPatterns(includeOnly),
+		verbose:       verbose,
 	}
 }
 
-// Run process
-func (r Runner) Run(files []string, writer *bufio.Writer) error {
-	for _, file := range files {
-		inExcluded, err := r.inExcludedFiles(file)
-		if err != nil {
-			return err
+func splitPatterns(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := parts[:0]
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
 		}
-		if inExcluded {
+	}
+	return out
+}
+
+func (r *Runner) Run(files []string, writer *bufio.Writer) error {
+	for _, file := range files {
+		if file == "" {
 			continue
 		}
 
@@ -61,6 +55,17 @@ func (r Runner) Run(files []string, writer *bufio.Writer) error {
 			continue
 		}
 
+		excluded, err := r.inExcludedFiles(file)
+		if err != nil {
+			return err
+		}
+		if excluded {
+			if r.verbose {
+				fmt.Println("Excluded:", file)
+			}
+			continue
+		}
+
 		if err := r.processFile(file, writer); err != nil {
 			return err
 		}
@@ -68,37 +73,44 @@ func (r Runner) Run(files []string, writer *bufio.Writer) error {
 	return nil
 }
 
-func (r Runner) isIncludedFile(file string) (bool, error) {
-	if r.includeOnly == "" {
+func (r *Runner) isIncludedFile(file string) (bool, error) {
+	if len(r.includeOnly) == 0 {
 		return true, nil
 	}
-
-	rg, err := regexp.Compile(r.includeOnly)
-	if err != nil {
-		return false, fmt.Errorf("can't use include with: %s", r.includeOnly)
-	}
-	return rg.Match([]byte(file)), nil
+	return matchAny(r.includeOnly, file)
 }
 
-func (r Runner) inExcludedFiles(file string) (bool, error) {
-	if r.includeOnly != "" {
+func (r *Runner) inExcludedFiles(file string) (bool, error) {
+	if len(r.excludedFiles) == 0 {
 		return false, nil
 	}
+	return matchAny(r.excludedFiles, file)
+}
 
-	for _, ex := range r.excludedFiles {
-		rg, err := regexp.Compile(ex)
+// matchAny returns true if file matches any glob pattern.
+// Patterns match against either the basename or the full path.
+func matchAny(patterns []string, file string) (bool, error) {
+	base := filepath.Base(file)
+	for _, p := range patterns {
+		ok, err := filepath.Match(p, base)
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("invalid pattern %q: %w", p, err)
 		}
-		if rg.Match([]byte(file)) {
+		if ok {
+			return true, nil
+		}
+		ok, err = filepath.Match(p, file)
+		if err != nil {
+			return false, fmt.Errorf("invalid pattern %q: %w", p, err)
+		}
+		if ok {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-// ProcessFile reads a file and writes its content to the writer if it meets criteria
-func (r Runner) processFile(filename string, writer *bufio.Writer) error {
+func (r *Runner) processFile(filename string, writer *bufio.Writer) error {
 	info, err := os.Stat(filename)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -110,33 +122,31 @@ func (r Runner) processFile(filename string, writer *bufio.Writer) error {
 	if info.Size() > maxFileSize {
 		fmt.Fprintf(writer, "\n\n=== %s === [LARGE FILE SKIPPED: %.2f MB]\n",
 			filename, float64(info.Size())/(1024*1024))
-		fmt.Println("Skipped large file:", filename)
+		if r.verbose {
+			fmt.Println("Skipped large file:", filename)
+		}
 		return nil
 	}
-
-	fileIsUTF8, err := isUTF8(filename)
-	if !fileIsUTF8 || err != nil {
-		fmt.Fprintf(writer, "\n\n=== %s === [BINARY FILE SKIPPED]\n", filename)
-		fmt.Println("Skipped binary file:", filename)
-		return nil
-	}
-
-	fmt.Fprintf(writer, "\n\n=== %s ===\n", filename)
 
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}
 
-	_, err = writer.Write(content)
-	return err
-}
-
-func isUTF8(filePath string) (bool, error) {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return false, fmt.Errorf("error reading file: %w", err)
+	if !utf8.Valid(content) {
+		fmt.Fprintf(writer, "\n\n=== %s === [BINARY FILE SKIPPED]\n", filename)
+		if r.verbose {
+			fmt.Println("Skipped binary file:", filename)
+		}
+		return nil
 	}
 
-	return utf8.Valid(content), nil
+	fmt.Fprintf(writer, "\n\n=== %s ===\n", filename)
+	if _, err := writer.Write(content); err != nil {
+		return err
+	}
+	if r.verbose {
+		fmt.Println("Processed:", filename)
+	}
+	return nil
 }

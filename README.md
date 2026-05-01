@@ -8,6 +8,7 @@ A lightweight command-line tool that converts your Git repository into a single 
 - 🎯 **Git-Aware** - Only processes tracked files (respects `.gitignore`)
 - 🛡️ **Smart Filtering** - Automatically skips binary files and large files (>100MB)
 - 🔍 **UTF-8 Validated** - Ensures only text files are included
+- 🎛️ **Glob Filters** - Include or exclude files by pattern
 - 📊 **Progress Feedback** - Shows file processing and final output size
 
 ## Installation
@@ -33,11 +34,38 @@ cd /path/to/your/repo
 go2txt
 ```
 
-This will create a `repo.txt` file in the parent directory containing:
+This creates `../<repo>.txt` (one directory above the repo, named after it) containing:
 
 - Repository name and generation timestamp
 - Contents of all Git-tracked text files
 - Clear section markers for each file
+
+### Options
+
+| Flag                  | Default          | Description                                                       |
+|-----------------------|------------------|-------------------------------------------------------------------|
+| `-output`, `-o`       | `../<repo>.txt`  | Output file path                                                  |
+| `-include`, `-i`      | _(none)_         | Comma-separated glob patterns to include exclusively (e.g. `*.go,*.md`) |
+| `-exclude`, `-e`      | _(none)_         | Comma-separated glob patterns to exclude (e.g. `*.jsx,*.ts`)      |
+| `-verbose`, `-v`      | `false`          | Print each file as it is processed, excluded, or skipped          |
+
+Patterns use Go's [`filepath.Match`](https://pkg.go.dev/path/filepath#Match) syntax and are tested against both the file basename and full path. When `-include` is set, only matching files are processed; `-exclude` is then applied on top.
+
+### Examples
+
+```bash
+# Write to a custom location
+go2txt -o /tmp/myrepo.txt
+
+# Only include Go and Markdown files
+go2txt -i '*.go,*.md'
+
+# Exclude generated and lock files
+go2txt -e '*.pb.go,*.lock,package-lock.json'
+
+# Verbose mode
+go2txt -v
+```
 
 ### Example Output
 
@@ -74,24 +102,16 @@ func main() {
 
 1. Verifies you're in a Git repository
 2. Lists all Git-tracked files using `git ls-files`
-3. Filters out:
+3. Applies `-include` / `-exclude` glob filters
+4. Filters out:
    - Binary files (non-UTF-8 content)
    - Large files (>100MB)
-4. Concatenates all text files with clear section markers
-5. Outputs to `repo.txt` in the parent directory
-
-## Configuration
-
-Currently, the tool uses sensible defaults:
-
-- **Max file size**: 100MB
-- **Output location**: `../repo.txt` (parent directory)
-- **File validation**: UTF-8 encoding check
+5. Concatenates remaining text files with clear section markers
+6. Writes to the path given by `-output` (default `../<repo>.txt`, one level above the repo)
 
 ## Limitations
 
 - Requires Git to be installed and repository initialized
-- Output file is created in the parent directory (to avoid Git tracking)
 - Binary files and files >100MB are automatically skipped
 - No recursive submodule support (yet)
 
@@ -100,17 +120,16 @@ Currently, the tool uses sensible defaults:
 Contributions are welcome! Areas for improvement:
 
 - [ ] Add test coverage
-- [ ] Make output location configurable
-- [ ] Add file pattern include/exclude flags
 - [ ] Support for submodules
 - [ ] Custom size limits via CLI flags
+- [ ] Stronger binary detection (null-byte sniff)
 
 ### Running from Source
 
 ```bash
 git clone https://github.com/michael-duren/go2txt.git
 cd go2txt
-go run cmd/cli/main.go
+go run ./cmd/cli
 ```
 
 ## Credits

@@ -1,0 +1,6 @@
+# Build output
+/git2txt
+/dist/
+
+# Common output file
+/repo.txt

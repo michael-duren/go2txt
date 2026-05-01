@@ -5,31 +5,44 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/michael-duren/go2txt/internal/converter"
 	"github.com/michael-duren/go2txt/internal/git"
 )
 
-
 func main() {
-	outputFile := flag.String("output", "repo.txt", "output file")
-	excludedFiles := flag.String("excluded", "", "excluded files, ex: *.jsx,*.ts")
-	verbose := flag.Bool("verbose", false, "verbose output")
-	gitRepo := flag.Bool("git", true, "is git repository")
-	remoteRepo := flag.String("remote-repository", "", "is a remote repo")
+	var (
+		outputFile    string
+		excludedFiles string
+		includeOnly   string
+		verbose       bool
+	)
+
+	flag.StringVar(&outputFile, "output", "", "output file path (default: ../<repo>.txt)")
+	flag.StringVar(&outputFile, "o", "", "short for -output")
+	flag.StringVar(&excludedFiles, "exclude", "", "comma-separated glob patterns to exclude (e.g. *.jsx,*.ts)")
+	flag.StringVar(&excludedFiles, "e", "", "short for -exclude")
+	flag.StringVar(&includeOnly, "include", "", "comma-separated glob patterns to include exclusively (e.g. *.go,*.md)")
+	flag.StringVar(&includeOnly, "i", "", "short for -include")
+	flag.BoolVar(&verbose, "verbose", false, "verbose output")
+	flag.BoolVar(&verbose, "v", false, "short for -verbose")
 	flag.Parse()
 
 	if !git.IsRepo() {
-		fmt.Println("Error: Not in a git repository")
+		fmt.Fprintln(os.Stderr, "Error: Not in a git repository")
 		os.Exit(1)
 	}
 
-	outputPath := path.Join("..", *outputFile)
-	out, err := os.Create(outputPath)
+	repoName := git.GetRepoName()
+	if outputFile == "" {
+		outputFile = filepath.Join("..", repoName+".txt")
+	}
+
+	out, err := os.Create(outputFile)
 	if err != nil {
-		fmt.Printf("Error creating output file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error creating output file: %v\n", err)
 		os.Exit(1)
 	}
 	defer out.Close()
@@ -37,26 +50,28 @@ func main() {
 	writer := bufio.NewWriter(out)
 	defer writer.Flush()
 
-	repoName := git.GetRepoName()
 	fmt.Fprintf(writer, "Repository: %s\n", repoName)
 	fmt.Fprintf(writer, "Generated: %s\n", time.Now().Format(time.RFC1123))
 	fmt.Fprintln(writer, "================================")
 
-	// Get list of git-tracked files
 	files, err := git.GetFiles()
 	if err != nil {
-		fmt.Printf("Error getting git files: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error getting git files: %v\n", err)
 		os.Exit(1)
 	}
 
-	c := converter.NewRunner(*excludedFiles, *verbose, *gitRepo, *remoteRepo)
-	err = c.Run(files, writer)
-
-	if err != nil {
-		fmt.Printf("an error ocurred: %v\n", err)
+	c := converter.NewRunner(excludedFiles, includeOnly, verbose)
+	if err := c.Run(files, writer); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 
-	if info, err := os.Stat(outputPath); err == nil {
-		fmt.Printf("Done! Output size: %.2f MB\n", float64(info.Size())/(1024*1024))
+	if err := writer.Flush(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error flushing output: %v\n", err)
+		os.Exit(1)
+	}
+
+	if info, err := os.Stat(outputFile); err == nil {
+		fmt.Printf("Done! Output: %s (%.2f MB)\n", outputFile, float64(info.Size())/(1024*1024))
 	}
 }
