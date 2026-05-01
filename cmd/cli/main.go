@@ -56,7 +56,7 @@ func main() {
 		fmt.Printf("an error ocurred: %v\n", err)
 	}
 
-	if info, err := os.Stat(*&outputPath); err == nil {
+	if info, err := os.Stat(outputPath); err == nil {
 		fmt.Printf("Done! Output size: %.2f MB\n", float64(info.Size())/(1024*1024))
 	}
 }
