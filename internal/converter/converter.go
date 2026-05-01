@@ -1,8 +1,8 @@
 package converter
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,7 +41,7 @@ func splitPatterns(s string) []string {
 	return out
 }
 
-func (r *Runner) Run(files []string, writer *bufio.Writer) error {
+func (r *Runner) Run(files []string, writer io.Writer) error {
 	for _, file := range files {
 		if file == "" {
 			continue
@@ -110,7 +110,7 @@ func matchAny(patterns []string, file string) (bool, error) {
 	return false, nil
 }
 
-func (r *Runner) processFile(filename string, writer *bufio.Writer) error {
+func (r *Runner) processFile(filename string, writer io.Writer) error {
 	info, err := os.Stat(filename)
 	if err != nil {
 		if os.IsNotExist(err) {
