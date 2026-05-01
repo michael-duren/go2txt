@@ -18,7 +18,7 @@ jobs:
         with:
           go-version: "1.25.1"
       - name: Build
-        run: go build -v ./cmd/cli
+        run: go build -v ./cmd/go2txt
     #TODO: add after test cases are complete
     #- name: Test
     #run: go test -v ./...
@@ -47,19 +47,19 @@ jobs:
       - name: Build binaries
         run: |
           # Linux AMD64
-          GOOS=linux GOARCH=amd64 go build -o dist/git2txt-linux-amd64 -v ./cmd/cli
+          GOOS=linux GOARCH=amd64 go build -o dist/go2txt-linux-amd64 -v ./cmd/go2txt
 
           # Linux ARM64
-          GOOS=linux GOARCH=arm64 go build -o dist/git2txt-linux-arm64 -v ./cmd/cli
+          GOOS=linux GOARCH=arm64 go build -o dist/go2txt-linux-arm64 -v ./cmd/go2txt
 
           # macOS AMD64
-          GOOS=darwin GOARCH=amd64 go build -o dist/git2txt-darwin-amd64 -v ./cmd/cli
+          GOOS=darwin GOARCH=amd64 go build -o dist/go2txt-darwin-amd64 -v ./cmd/go2txt
 
           # macOS ARM64 (Apple Silicon)
-          GOOS=darwin GOARCH=arm64 go build -o dist/git2txt-darwin-arm64 -v ./cmd/cli
+          GOOS=darwin GOARCH=arm64 go build -o dist/go2txt-darwin-arm64 -v ./cmd/go2txt
 
           # Windows AMD64
-          GOOS=windows GOARCH=amd64 go build -o dist/git2txt-windows-amd64.exe -v ./cmd/cli
+          GOOS=windows GOARCH=amd64 go build -o dist/go2txt-windows-amd64.exe -v ./cmd/go2txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
