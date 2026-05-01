@@ -160,6 +160,33 @@ func TestRunner_Run_ExcludeDirs_Glob(t *testing.T) {
 	}
 }
 
+func TestRunner_Run_ExcludeDirs_NormalizesUserInput(t *testing.T) {
+	dir := t.TempDir()
+	writeFileAt(t, dir, "src/a.go", "package a")
+	writeFileAt(t, dir, "agents/b.md", "# b")
+
+	for _, pat := range []string{"./agents/", "agents/", "./agents", "agents"} {
+		t.Run(pat, func(t *testing.T) {
+			r := NewRunner("", pat, "", false)
+			var buf bytes.Buffer
+			files := []string{
+				filepath.Join(dir, "src/a.go"),
+				filepath.Join(dir, "agents/b.md"),
+			}
+			if err := r.Run(files, &buf); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+			if !strings.Contains(out, "src/a.go") {
+				t.Errorf("src/a.go should appear; got:\n%s", out)
+			}
+			if strings.Contains(out, "agents/b.md") {
+				t.Errorf("agents/b.md should be excluded with pattern %q; got:\n%s", pat, out)
+			}
+		})
+	}
+}
+
 func TestRunner_Run_ExcludeDirs_NoMatch(t *testing.T) {
 	dir := t.TempDir()
 	writeFileAt(t, dir, "src/a.go", "package a")

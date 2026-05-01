@@ -23,10 +23,24 @@ type Runner struct {
 func NewRunner(excludedFiles, excludedDirs, includeOnly string, verbose bool) *Runner {
 	return &Runner{
 		excludedFiles: splitPatterns(excludedFiles),
-		excludedDirs:  splitPatterns(excludedDirs),
+		excludedDirs:  cleanDirPatterns(splitPatterns(excludedDirs)),
 		includeOnly:   splitPatterns(includeOnly),
 		verbose:       verbose,
 	}
+}
+
+// cleanDirPatterns normalizes dir patterns so users can pass "./agents/",
+// "agents/", or "agents" interchangeably. filepath.Clean strips the "./"
+// prefix and trailing separator without affecting glob metacharacters.
+func cleanDirPatterns(patterns []string) []string {
+	if len(patterns) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(patterns))
+	for _, p := range patterns {
+		out = append(out, filepath.Clean(p))
+	}
+	return out
 }
 
 func splitPatterns(s string) []string {
