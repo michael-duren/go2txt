@@ -54,17 +54,20 @@ Usage:
   go2txt [flags]
 
 Flags:
-  -o, -output    string   output file path (default: ../<repo>.txt)
-  -e, -exclude   string   comma-separated glob patterns to exclude (e.g. *.jsx,*.ts)
-  -i, -include   string   comma-separated glob patterns to include exclusively (e.g. *.go,*.md)
-  -v, -verbose            verbose output
-  -V, -version            print version and exit
-  -h, -help               show this help message
+  -o, -output       string   output file path (default: ../<repo>.txt)
+  -e, -exclude      string   comma-separated glob patterns to exclude (e.g. *.jsx,*.ts)
+  -D, -exclude-dirs string   comma-separated glob patterns of directories to exclude (e.g. node_modules,vendor)
+  -i, -include      string   comma-separated glob patterns to include exclusively (e.g. *.go,*.md)
+  -d, -dir          string   only include files under this directory (e.g. internal)
+  -v, -verbose               verbose output
+  -V, -version               print version and exit
+  -h, -help                  show this help message
 
 Examples:
   go2txt
   go2txt -o repo.txt
   go2txt -i "*.go,*.md"
+  go2txt -d internal
   go2txt -e "*.lock,*.sum" -v
 
 Notes:

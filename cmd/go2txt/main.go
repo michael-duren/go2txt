@@ -18,6 +18,7 @@ func main() {
 		excludedFiles string
 		excludedDirs  string
 		includeOnly   string
+		onlyDir       string
 		verbose       bool
 		showVersion   bool
 	)
@@ -30,6 +31,8 @@ func main() {
 	flag.StringVar(&excludedDirs, "D", "", "short for -exclude-dirs")
 	flag.StringVar(&includeOnly, "include", "", "comma-separated glob patterns to include exclusively (e.g. *.go,*.md)")
 	flag.StringVar(&includeOnly, "i", "", "short for -include")
+	flag.StringVar(&onlyDir, "dir", "", "only include files under this directory (e.g. internal)")
+	flag.StringVar(&onlyDir, "d", "", "short for -dir")
 	flag.BoolVar(&verbose, "verbose", false, "verbose output")
 	flag.BoolVar(&verbose, "v", false, "short for -verbose")
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
@@ -71,7 +74,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	c := converter.NewRunner(excludedFiles, excludedDirs, includeOnly, verbose)
+	c := converter.NewRunner(excludedFiles, excludedDirs, includeOnly, onlyDir, verbose)
 	if err := c.Run(files, writer); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

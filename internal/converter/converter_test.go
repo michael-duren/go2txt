@@ -71,7 +71,7 @@ func TestRunner_Run_IncludeOnly(t *testing.T) {
 	writeFile(t, dir, "b.md", "# md")
 	writeFile(t, dir, "c.txt", "txt")
 
-	r := NewRunner("", "", "*.go,*.md", false)
+	r := NewRunner("", "", "*.go,*.md", "", false)
 	var buf bytes.Buffer
 	if err := r.Run(filesIn(dir, "a.go", "b.md", "c.txt"), &buf); err != nil {
 		t.Fatal(err)
@@ -90,7 +90,7 @@ func TestRunner_Run_Exclude(t *testing.T) {
 	writeFile(t, dir, "a.go", "package a")
 	writeFile(t, dir, "b.lock", "lock")
 
-	r := NewRunner("*.lock", "", "", false)
+	r := NewRunner("*.lock", "", "", "", false)
 	var buf bytes.Buffer
 	if err := r.Run(filesIn(dir, "a.go", "b.lock"), &buf); err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestRunner_Run_ExcludeDirs_Component(t *testing.T) {
 	writeFileAt(t, dir, "node_modules/b.js", "var b")
 	writeFileAt(t, dir, "vendor/lib/c.go", "package lib")
 
-	r := NewRunner("", "node_modules,vendor", "", false)
+	r := NewRunner("", "node_modules,vendor", "", "", false)
 	var buf bytes.Buffer
 	files := []string{
 		filepath.Join(dir, "src/a.go"),
@@ -138,7 +138,7 @@ func TestRunner_Run_ExcludeDirs_Glob(t *testing.T) {
 	writeFileAt(t, dir, "internal/testdata/x.go", "package x")
 	writeFileAt(t, dir, "pkg/testfixtures/y.go", "package y")
 
-	r := NewRunner("", "test*", "", false)
+	r := NewRunner("", "test*", "", "", false)
 	var buf bytes.Buffer
 	files := []string{
 		filepath.Join(dir, "src/a.go"),
@@ -167,7 +167,7 @@ func TestRunner_Run_ExcludeDirs_NormalizesUserInput(t *testing.T) {
 
 	for _, pat := range []string{"./agents/", "agents/", "./agents", "agents"} {
 		t.Run(pat, func(t *testing.T) {
-			r := NewRunner("", pat, "", false)
+			r := NewRunner("", pat, "", "", false)
 			var buf bytes.Buffer
 			files := []string{
 				filepath.Join(dir, "src/a.go"),
@@ -191,7 +191,7 @@ func TestRunner_Run_ExcludeDirs_NoMatch(t *testing.T) {
 	dir := t.TempDir()
 	writeFileAt(t, dir, "src/a.go", "package a")
 
-	r := NewRunner("", "node_modules", "", false)
+	r := NewRunner("", "node_modules", "", "", false)
 	var buf bytes.Buffer
 	if err := r.Run([]string{filepath.Join(dir, "src/a.go")}, &buf); err != nil {
 		t.Fatal(err)
@@ -206,7 +206,7 @@ func TestRunner_Run_ExcludeDirs_RootFileNotMatched(t *testing.T) {
 	writeFile(t, dir, "a.go", "package a")
 
 	// pattern "." would otherwise match root; ensure root files aren't dropped.
-	r := NewRunner("", "vendor", "", false)
+	r := NewRunner("", "vendor", "", "", false)
 	var buf bytes.Buffer
 	if err := r.Run(filesIn(dir, "a.go"), &buf); err != nil {
 		t.Fatal(err)
@@ -220,11 +220,63 @@ func TestRunner_Run_ExcludeDirs_InvalidPatternErrors(t *testing.T) {
 	dir := t.TempDir()
 	writeFileAt(t, dir, "vendor/a.go", "package a")
 
-	r := NewRunner("", "[bad", "", false)
+	r := NewRunner("", "[bad", "", "", false)
 	var buf bytes.Buffer
 	err := r.Run([]string{filepath.Join(dir, "vendor/a.go")}, &buf)
 	if err == nil {
 		t.Fatal("expected error from invalid dir pattern, got nil")
+	}
+}
+
+func TestRunner_Run_OnlyDir(t *testing.T) {
+	dir := t.TempDir()
+	writeFileAt(t, dir, "internal/git/git.go", "package git")
+	writeFileAt(t, dir, "internal/converter/c.go", "package converter")
+	writeFileAt(t, dir, "cmd/main.go", "package main")
+	writeFile(t, dir, "README.md", "# readme")
+
+	files := []string{
+		filepath.Join(dir, "internal/git/git.go"),
+		filepath.Join(dir, "internal/converter/c.go"),
+		filepath.Join(dir, "cmd/main.go"),
+		filepath.Join(dir, "README.md"),
+	}
+
+	for _, in := range []string{"internal", "./internal", "internal/"} {
+		t.Run(in, func(t *testing.T) {
+			r := NewRunner("", "", "", in, false)
+			var buf bytes.Buffer
+			if err := r.Run(files, &buf); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+			if !strings.Contains(out, "internal/git/git.go") {
+				t.Errorf("internal/git/git.go should appear; got:\n%s", out)
+			}
+			if !strings.Contains(out, "internal/converter/c.go") {
+				t.Errorf("internal/converter/c.go should appear; got:\n%s", out)
+			}
+			if strings.Contains(out, "cmd/main.go") {
+				t.Errorf("cmd/main.go should be filtered out; got:\n%s", out)
+			}
+			if strings.Contains(out, "README.md") {
+				t.Errorf("README.md should be filtered out; got:\n%s", out)
+			}
+		})
+	}
+}
+
+func TestRunner_Run_OnlyDir_Empty(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "a.go", "package a")
+
+	r := NewRunner("", "", "", "", false)
+	var buf bytes.Buffer
+	if err := r.Run(filesIn(dir, "a.go"), &buf); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "a.go") {
+		t.Errorf("a.go should appear when -dir is empty; got:\n%s", buf.String())
 	}
 }
 
@@ -233,7 +285,7 @@ func TestRunner_Run_SkipsEmptyAndMissing(t *testing.T) {
 	writeFile(t, dir, "a.go", "package a")
 	missing := filepath.Join(dir, "ghost.go")
 
-	r := NewRunner("", "", "", false)
+	r := NewRunner("", "", "", "", false)
 	var buf bytes.Buffer
 	files := []string{"", filepath.Join(dir, "a.go"), missing}
 	if err := r.Run(files, &buf); err != nil {
@@ -254,7 +306,7 @@ func TestRunner_Run_BinaryFileSkipped(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := NewRunner("", "", "", false)
+	r := NewRunner("", "", "", "", false)
 	var buf bytes.Buffer
 	if err := r.Run([]string{bin}, &buf); err != nil {
 		t.Fatal(err)
@@ -276,7 +328,7 @@ func TestRunner_Run_LargeFileSkipped(t *testing.T) {
 	}
 	f.Close()
 
-	r := NewRunner("", "", "", false)
+	r := NewRunner("", "", "", "", false)
 	var buf bytes.Buffer
 	if err := r.Run([]string{big}, &buf); err != nil {
 		t.Fatal(err)
@@ -290,7 +342,7 @@ func TestRunner_Run_InvalidPatternErrors(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "a.go", "package a")
 
-	r := NewRunner("[bad", "", "", false)
+	r := NewRunner("[bad", "", "", "", false)
 	var buf bytes.Buffer
 	err := r.Run(filesIn(dir, "a.go"), &buf)
 	if err == nil {
@@ -302,7 +354,7 @@ func TestRunner_Run_WritesFileContent(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "a.go", "package a\n\nfunc Hi() {}\n")
 
-	r := NewRunner("", "", "", false)
+	r := NewRunner("", "", "", "", false)
 	var buf bytes.Buffer
 	if err := r.Run(filesIn(dir, "a.go"), &buf); err != nil {
 		t.Fatal(err)

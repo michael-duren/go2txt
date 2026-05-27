@@ -17,16 +17,28 @@ type Runner struct {
 	excludedFiles []string
 	excludedDirs  []string
 	includeOnly   []string
+	onlyDir       string
 	verbose       bool
 }
 
-func NewRunner(excludedFiles, excludedDirs, includeOnly string, verbose bool) *Runner {
+func NewRunner(excludedFiles, excludedDirs, includeOnly, onlyDir string, verbose bool) *Runner {
 	return &Runner{
 		excludedFiles: splitPatterns(excludedFiles),
 		excludedDirs:  cleanDirPatterns(splitPatterns(excludedDirs)),
 		includeOnly:   splitPatterns(includeOnly),
+		onlyDir:       cleanOnlyDir(onlyDir),
 		verbose:       verbose,
 	}
+}
+
+// cleanOnlyDir normalizes the -dir input so users can pass "./agents/",
+// "agents/", or "agents" interchangeably. Returns "" when no dir is set.
+func cleanOnlyDir(d string) string {
+	d = strings.TrimSpace(d)
+	if d == "" {
+		return ""
+	}
+	return filepath.Clean(d)
 }
 
 // cleanDirPatterns normalizes dir patterns so users can pass "./agents/",
@@ -60,6 +72,13 @@ func splitPatterns(s string) []string {
 func (r *Runner) Run(files []string, writer io.Writer) error {
 	for _, file := range files {
 		if file == "" {
+			continue
+		}
+
+		if !r.inOnlyDir(file) {
+			if r.verbose {
+				fmt.Println("Outside dir:", file)
+			}
 			continue
 		}
 
@@ -146,6 +165,27 @@ func (r *Runner) inExcludedDirs(file string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// inOnlyDir returns true when no -dir filter is set, or when file lives
+// under the configured directory (matched against the cleaned dir path or
+// any directory component, mirroring how excludedDirs matches).
+func (r *Runner) inOnlyDir(file string) bool {
+	if r.onlyDir == "" {
+		return true
+	}
+	dir := filepath.Clean(filepath.Dir(file))
+	sep := string(filepath.Separator)
+	prefix := r.onlyDir + sep
+	if dir == r.onlyDir || strings.HasPrefix(dir, prefix) {
+		return true
+	}
+	for comp := range strings.SplitSeq(dir, sep) {
+		if comp == r.onlyDir {
+			return true
+		}
+	}
+	return false
 }
 
 // matchAny returns true if file matches any glob pattern.
